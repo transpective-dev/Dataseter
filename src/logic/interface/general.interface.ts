@@ -14,7 +14,8 @@ interface cloud {
 
 export interface _raw {
     id: string,
-    content: string[]
+    content: string[] | null | string
+    status: boolean
 }
 
 export interface chunked_raw extends _raw {

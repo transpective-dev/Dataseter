@@ -8,4 +8,5 @@ export const palette = {
     border: '#ff7300',       
     success: '#10b981',      
     warning: '#f59e0b',      
+    error: '#ef4444',
 }

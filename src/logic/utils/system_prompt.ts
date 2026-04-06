@@ -1,4 +1,4 @@
-import {schema_base} from './core/session/session.interface';
+import type { schema_base } from '../interface/session.interface.ts';
 
 export class Prompts {
 

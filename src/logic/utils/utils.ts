@@ -1,4 +1,4 @@
-import { getPaths } from "./get_path";
+import { paths } from "./get_path.ts";
 
 export class Utils {
 
@@ -32,14 +32,14 @@ import { readFile } from 'fs/promises';
 export class history {
 
     public static get = async () => {
-        return await readFile(getPaths().file_processed_history, 'utf-8').then((i) => {
+        return await readFile(paths.file_processed_history, 'utf-8').then((i) => {
             return i.length < 5 ? null : Utils.lineSplit(i).map((i) => JSON.parse(i));
         })
     }
 
 }
 
-import { schema_base } from './core/session/session.interface';
+import { type schema_base } from '../interface/session.interface.ts';
 
 export const schema_builder = (schema: schema_base) => {
 
@@ -68,15 +68,15 @@ export const schema_builder = (schema: schema_base) => {
         const i = schema.format[key];
 
         // in can check key_value 
-        const description = 'requirement' in i ? i.requirement : i.exp;
+        const description = 'requirement' in i! ? i.requirement : i!.exp;
 
         properties[key] = {
             type: 'string',
             description,
         };
 
-        if (i.options) {
-            properties[key].enum = i.options;
+        if (i!.options) {
+            properties[key].enum = i!.options;
         }
 
         required.push(key);
@@ -97,7 +97,7 @@ export const schema_builder = (schema: schema_base) => {
 
 import { appendFile, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
-import { write_into_file } from './core/session/session.interface';
+import { type write_into_file } from '../interface/session.interface.ts';
 
 export const writeIntoFile = async (kind: 'dataset' | "config" | 'status', path: string, payloads: write_into_file) => {
 

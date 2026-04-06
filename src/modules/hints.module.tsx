@@ -15,23 +15,25 @@ import { stderr } from "node:process";
 const ls = {
   cmd: {
     extract: {
+      alia: "$s",
       desc: "extract file",
-      usage: ":extract <file_path>",
+      usage: "extract <file_path>",
     },
     edit: {
+      alia: "$e",
       desc: "edit configs",
-      usage: ":edit <action> <name>? <value>?",
+      usage: "edit <action> <name> <value>?",
     },
-    "?": {
+    hint: {
+      alia: "?",
       desc: "show hints",
-      usage: ":?",
+      usage: "?",
     },
   }
 };
 
 export const Hints = () => {
   const scrollRef = useRef<ScrollViewRef>(null);
-  const maxHeight = 24;
 
   const { stdout } = useStdout();
 
@@ -54,7 +56,7 @@ export const Hints = () => {
   });
 
   return (
-    <ScrollView ref={scrollRef} height={maxHeight}>
+    <ScrollView ref={scrollRef}>
       <Box flexDirection="column">
         {Object.entries(ls).map(([key_1, value]) => {
           return (

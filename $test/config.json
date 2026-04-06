@@ -1,6 +1,6 @@
 {
 	"model_config": {
-		"model_name": "undefined",
+		"model_name": "hello",
 		"context": {
 			"input": 8192,
 			"output": 8192
@@ -11,7 +11,7 @@
 			"top_k": 40,
 			"repeat_penalty": 1.1
 		},
-		"host": "server",
+		"host": "local",
 		"api_key": "undefined",
 		"base_url": "",
 		"sessionSettings": {

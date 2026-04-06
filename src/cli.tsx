@@ -8,7 +8,8 @@ import SelectInput from "ink-select-input";
 import chalk from "chalk";
 import os from "os";
 import { palette } from "./assets/colors.ts";
-import { cmd_filter, ManageComponent } from "./modules/manage.tsx";
+import { ManageComponent } from "./modules/manage.tsx";
+import { executeCommand } from "./modules/command.ts";
 import { paths } from "./logic/utils/get_path.ts";
 
 // ============ 1. create new terminal window ============
@@ -98,17 +99,11 @@ const App = () => {
               <TextInput
                 value={value}
                 onChange={setValue}
-                onSubmit={(value) => {
-                  setComponent(
-                    value ? (
-                      <ManageComponent {...cmd_filter(value)} />
-                    ) : (
-                      <>
-                        <Text>{"a"}</Text>
-                      </>
-                    ),
-                  );
-
+                onSubmit={async (value) => {
+                  if (value) {
+                    const result = await executeCommand(value);
+                    setComponent(<ManageComponent key={Date.now()} {...result} />);
+                  }
                   setValue("");
                 }}
                 placeholder=":extract = extract file | :edit = edit file | :? = hints"

@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/cli.tsx -s",
+    "watch": "tsx watch src/cli.tsx -s",
+    "watch:ui": "tsx watch src/cli.tsx --ui -s",
     "ui": "tsx src/cli.tsx --ui -s",
     "start": "node dist/cli.js",
     "build": "esbuild src/cli.tsx --bundle --platform=node --outfile=dist/cli.js"
