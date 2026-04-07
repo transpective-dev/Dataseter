@@ -57,7 +57,15 @@ export class Local_ClientManager {
         })
     }
 
+    public static isInitialized(): boolean {
+        return !!Local_ClientManager.agent && !!Local_ClientManager.model && !!Local_ClientManager.context;
+    }
+
     public initialize = async (config: agent_config) => {
+
+        if (Local_ClientManager.isInitialized()) {
+            return;
+        }
 
         // getllama
         if (!Local_ClientManager.agent) {
@@ -88,64 +96,57 @@ export class Local_ClientManager {
         Local_ClientManager.setContext(ctx)
     }
 
-    private static session_queue: Promise<extracted_data>[] = [];
+    public static executeSingle = async (payload: session_execute_p): Promise<string> => {
 
-    public static launchSessions = async (max_conc: number, payloads: session_execute_p[]) => {
+        const build_llama_schema = await (async (full_schema = schema_builder(payload.schema).schema): Promise<any> => {
+            const agent = Local_ClientManager.agent;
+            const clean_properties: Record<string, any> = {};
 
-
-        for (const i of payloads) {
-
-            if (Local_ClientManager.session_queue.length > max_conc - 1) {
-
-                // wait for the first session to finish
-                await Promise.race(Local_ClientManager.session_queue);
+            for (const [key, value] of Object.entries((full_schema as any).properties)) {
+                const { description, requirement, exp, ...constraints } = value as any;
+                clean_properties[key] = constraints;
             }
 
-            const build_llama_schema = await (async (full_schema = schema_builder(i.schema).schema): Promise<any> => {
+            const grammar = await agent.createGrammarForJsonSchema({
+                type: (full_schema as any).type,
+                properties: clean_properties,
+                required: (full_schema as any).required,
+                additionalProperties: false
+            });
 
-                const agent = Local_ClientManager.agent;
+            return grammar;
+        })();
 
-                const clean_properties: Record<string, any> = {};
+        const schema = build_llama_schema;
+        const seq = Local_ClientManager.context.getSequence();
 
-                for (const [key, value] of Object.entries(full_schema.properties)) {
-                    const { description, requirement, exp, ...constraints } = value as any;
-                    clean_properties[key] = constraints;
-                }
+        const session = new LlamaChat({
+            contextSequence: seq,
+        })
 
-                const grammar = await agent.createGrammarForJsonSchema({
-                    type: full_schema.type,
-                    properties: clean_properties,
-                    required: full_schema.required,
-                    additionalProperties: false
-                });
-
-                return grammar;
-            })();
-
-
-            const schema = build_llama_schema
-
-            const seq = Local_ClientManager.context.getSequence();
-
-            const session = await new LlamaChat({
-                contextSequence: seq,
-            })
-
-            session.generateResponse([
+        try {
+            const responseResult = await session.generateResponse([
                 {
                     type: 'system',
-                    text: Prompts.data_extraction(i.schema)
+                    text: Prompts.data_extraction(payload.schema)
                 },
                 {
                     type: 'user',
-                    text: `provided_data: ${i.payloads.content}`
+                    text: `provided_data: ${payload.payloads.content}`
                 }
             ], {
                 grammar: schema
-            })
+            });
 
+            return typeof responseResult === 'string' ? responseResult : (responseResult as any).response || responseResult;
+        } finally {
+            if (typeof (session as any).dispose === 'function') {
+                (session as any).dispose();
+            }
+            if (seq && typeof (seq as any).dispose === 'function') {
+                (seq as any).dispose();
+            }
         }
-
     }
 
 }

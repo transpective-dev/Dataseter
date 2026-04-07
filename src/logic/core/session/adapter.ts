@@ -10,8 +10,12 @@ import { schema_builder } from '../../utils/utils.ts';
 
 let client: Cloud_ClientManager | null = null
 
-// dispose every independent sessions status
-export class Session {
+export interface ISession {
+    execute(payloads: session_execute_p): Promise<extracted_data>;
+}
+
+// Cloud Session Implementation
+export class CloudSession implements ISession {
 
     private client: openai.OpenAI;
 
@@ -82,6 +86,42 @@ export class Session {
 
 }
 
+// Local Session Implementation
+export class LocalSession implements ISession {
+    public async execute(payloads: session_execute_p): Promise<extracted_data> {
+        try {
+            const responseTxt = await Local_ClientManager.executeSingle(payloads);
+            
+            if (!responseTxt) {
+                throw new Error("Local model returned empty response.");
+            }
+
+            const extractedData = JSON.parse(responseTxt);
+
+            return {
+                info: {
+                    id: payloads.payloads.chunk_id,
+                    status: 'completed',
+                    tokens: 0,
+                    finishReason: 'stop'
+                },
+                data: extractedData
+            };
+        } catch (error: any) {
+            return {
+                info: {
+                    id: payloads.payloads.chunk_id,
+                    status: 'failed',
+                    error_msg: error.message,
+                    tokens: 0,
+                    finishReason: 'error'
+                },
+                data: null
+            };
+        }
+    }
+}
+
 import { writeIntoFile } from '../../utils/utils.ts';
 import fs from "fs/promises"
 
@@ -108,23 +148,45 @@ export class SessionManager {
 
     public static async instantiateClient() {
 
-        if (client) {
+        const host = configManager.getActiveHostKey();
+
+        if (host === 'server_config') {
+            if (client) {
+                return;
+            }
+
+            if (!('base_url' in this.config) || ((this.config as any).base_url === '')) return 'base_url is missing. please check agent.config.json or settings';
+
+            client = new Cloud_ClientManager({
+                baseURL: (this.config as any).base_url,
+                model: this.config.model_name,
+                apiKey: (this.config as any).api_key || '',
+                payloads: {
+                    timeout: 30000,
+                    maxRetries: 3
+                }
+            })
+
+            return;
+        } else if (host === 'local_config') {
+            if (Local_ClientManager.isInitialized()) {
+                return;
+            }
+
+            // instantiate local model
+            console.log('[Adapter] Initializing Local Client Manager...');
+            const localConfig = {
+                path: (this.config as any).model_path || '',
+                name: this.config.model_name || 'local-model',
+                contextSize: this.config.context?.input || 4000,
+                cache: (this.config as any).sessionSettings?.cache || 'F16'
+            };
+            
+            const localClient = new Local_ClientManager(localConfig);
+            await localClient.initialize(localConfig);
+            
             return;
         }
-
-        if (!('base_url' in this.config) || (this.config.base_url === '')) return 'base_url is missing. please check agent.config.json or settings';
-
-        client = new Cloud_ClientManager({
-            baseURL: this.config.base_url,
-            model: this.config.model_name,
-            apiKey: this.config.api_key,
-            payloads: {
-                timeout: 30000,
-                maxRetries: 3
-            }
-        })
-
-        return;
 
     }
 
@@ -141,18 +203,17 @@ export class SessionManager {
                 await Promise.race(SessionManager.session_queue);
             }
 
-            let promise: any;
+            let promise: Promise<extracted_data>;
+            let session: ISession;
 
             if (host === 'server_config') {
-
                 await this.instantiateClient();
-
-                const session = new Session(client!.getClient(), client!.model);
-
+                session = new CloudSession(client!.getClient(), client!.model);
                 promise = session.execute(i);
-
             } else {
-
+                await this.instantiateClient();
+                session = new LocalSession();
+                promise = session.execute(i);
             }
 
             SessionManager.session_queue.push(promise);
