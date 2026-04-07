@@ -1,8 +1,7 @@
 import { Llama, getLlama, LlamaContext, LlamaModel, LlamaChat } from "node-llama-cpp";
-import { extracted_data } from "../session/session.interface";
-import { session_execute_p } from "../session/session.interface";
-import { Prompts } from "../../system_prompt";
-import { schema_builder } from "../../utils";
+import type { extracted_data, session_execute_p } from "../../interface/session.interface.ts";
+import { Prompts } from "../../utils/system_prompt.ts";
+import { schema_builder } from "../../utils/utils.ts";
 
 interface agent_config {
     path: string,

@@ -54,7 +54,7 @@ export class Parser {
     } catch (error: any) {
       return {
         status: false,
-        data: String(error)
+        message: error.message
       }
     }
   }

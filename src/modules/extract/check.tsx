@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { palette } from "../../assets/colors.ts";
 import { Parser } from "../../logic/core/parsers/baseParser.ts";
 import { ChunkLogic } from "../../logic/core/chunking/chunker.ts";
+import { CustomIndicator } from "../../assets/theme.tsx";
 
 export const Check = ({
   next,
@@ -72,14 +73,12 @@ export const Check = ({
           });
         }
 
-      } else {
+      }
+
+      if (!data.status) {
         setIsParsed({
           status: data.status,
-          data: {
-            id: data.id || "",
-            content: data.content ? data.content : [],
-          },
-          estimates: null,
+          message: 'message' in data ? data.message as string : 'Unknown error',
         });
       }
     });
@@ -95,7 +94,7 @@ export const Check = ({
   ) : (
     <>
       {isParsed.status === true ? (
-        <Box flexDirection="column">
+        <Box flexDirection="column" gap={1}>
           <Text>File ID: {isParsed.data?.id}</Text>
           <Text>File Path: {path}</Text>
           <Text>Lines: {isParsed.data?.content.length}</Text>
@@ -103,7 +102,7 @@ export const Check = ({
           <Text>Estimated Chunk count: {isParsed.estimates?.chunk || 0}</Text>
           <Box flexDirection="column" marginTop={2}>
             <Text>Do you want to continue?</Text>
-            <SelectInput
+            <SelectInput 
               items={[
                 { label: "Yes", value: "yes" },
                 { label: "No", value: "no" },
@@ -116,16 +115,20 @@ export const Check = ({
                   quit();
                 }
               }}
+              indicatorComponent={CustomIndicator}
             />
           </Box>
         </Box>
       ) : (
         <Box flexDirection="column">
           <Text color={palette.secondary}>Failed to parse file: </Text>
-          <Text color={palette.error}>{'message' in isParsed ? isParsed.message : 'Unknown error'}</Text>
+          <Box marginTop={1}>
+            <Text color={palette.error}>{'message' in isParsed ? isParsed.message : 'Unknown error'}</Text>
+          </Box>
           <Box flexDirection="column" marginTop={2}>
             <SelectInput
               items={[{ label: "Quit", value: "quit" }]}
+              indicatorComponent={CustomIndicator}
               onSelect={(item) => {
                 if (item.value === "quit") {
                   quit();

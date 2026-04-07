@@ -2,6 +2,7 @@ import { Box, Text } from "ink";
 import { useState } from "react";
 import { Check } from "./check.tsx";
 import { palette } from "../../assets/colors.ts";
+import { Start } from "./start.tsx";
 
 type process = 'check' | 'start' | 'done' | null
 
@@ -20,7 +21,7 @@ export const IfStart = ({path}: {path: string}): JSX.Element => {
         )}
         {process === "start" && (
           <Box flexDirection="column">
-            <Text>Starting extraction...</Text>
+            <Start next={() => setProcess("done")} quit={() => setProcess(null)} path={path} />
           </Box>
         )}
         {process === "done" && (

@@ -17,7 +17,9 @@ export class ChunkLogic {
 
         try {
 
-            const config = configManager.get('model_config');
+            const current = configManager.getActiveHostKey();
+
+            const config = configManager.get(current);
 
             const params: chunk_payloads = {
                 output_ratio: config.sessionSettings?.chunk_output_ratio || 0.3,

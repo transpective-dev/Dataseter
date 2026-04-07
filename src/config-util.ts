@@ -17,7 +17,7 @@ export class ConfigManager {
       configName: 'config'
     })
 
-    if (!this.has('model_config')) {
+    if (!this.has('active_host')) {
       // parse schema
       const defaultConfig = config_schema.parse({})
 
@@ -41,6 +41,20 @@ export class ConfigManager {
 
   has<T extends keyof ConfigSchema>(key: T): boolean {
     return this.config.has(key)
+  }
+
+  getActiveHostKey(): 'local_config' | 'server_config' {
+    const host = this.get('active_host')
+    return `${host}_config` as 'local_config' | 'server_config'
+  }
+
+  getInactiveHostKey(): 'local_config' | 'server_config' {
+    const host = this.get('active_host')
+    return host === 'server' ? 'local_config' : 'server_config'
+  }
+
+  getActiveConfig() {
+    return this.config.get(this.getActiveHostKey())
   }
 }
 

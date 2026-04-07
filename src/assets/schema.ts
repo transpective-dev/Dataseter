@@ -1,10 +1,10 @@
 import * as z from 'zod'
 
 const sessionSettings = z.object({
-    
+
     // buffer for mitigating overflow
     chunk_buffer: z.number().min(0).max(1).default(0.6),
-    
+
     // reserve context space for output
     chunk_output_ratio: z.number().min(0).max(1).default(0.5),
 
@@ -24,7 +24,7 @@ const commonModelConfig = z.object({
         input: z.number().default(8192),
         output: z.number().default(8192),
     }).default({}),
-    model_preference: z.object({  
+    model_preference: z.object({
         temperature: z.number().min(0).max(2).default(0.7),
         top_p: z.number().min(0).max(0.9).default(0.9),
         top_k: z.number().min(0).max(40).default(40),
@@ -34,32 +34,35 @@ const commonModelConfig = z.object({
 
 const cache = z.enum(['F16', 'F32', 'Q8_0', 'Q4_0'])
 
+const user_settings = z.object({
+    extracted_output_dir: z.string().min(1).default('./output'),
+    preference: z.object({
+        output_language: z.string().default('en')
+    }).default({})
+}).default({})
+
 const hostLocal = commonModelConfig.extend({
-    host: z.literal('local'),
+    host: z.literal('local').default('local'),
     model_path: z.string().default('undefined'),
     sessionSettings: sessionSettings.extend({
         cache: cache.default('F16')
-    }).default({})
-})
+    }).default({}),
+    user_settings: user_settings.default({})
+}).default({})
 
 
 const hostServer = commonModelConfig.extend({
-  host: z.literal('server'),
-  api_key: z.string().default('undefined'),
-  base_url: z.string().default(''),
-  sessionSettings: sessionSettings.default({})
-})
+    host: z.literal('server').default('server'),
+    api_key: z.string().default('undefined'),
+    base_url: z.string().default(''),
+    sessionSettings: sessionSettings.default({}),
+    user_settings: user_settings.default({})
+}).default({})
 
 export const config_schema = z.object({
-    model_config: z.discriminatedUnion('host', [hostServer, hostLocal]).default({
-        host: 'server'
-    }),
-    user_settings: z.object({
-        extracted_output_dir: z.string().min(1).default('./output'),
-        preference: z.object({
-            output_language: z.string().default('en')  
-        }).default({})
-    }).default({})
+    active_host: z.enum(['local', 'server']).default('server'),
+    local_config: hostLocal,
+    server_config: hostServer
 })
 
 export type ConfigSchema = z.infer<typeof config_schema>

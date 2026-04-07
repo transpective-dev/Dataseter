@@ -20,7 +20,7 @@ const cleanQuotes = (v: string) => {
 
 program
 .command('extract')
-.alias(':s')
+.alias('/s')
 .description('start create dataset')
 .option('-f, --file <file_path>', 'file path to extract', cleanQuotes)
 .action((options) => {
@@ -29,22 +29,35 @@ program
 
 program
 .command('hint')
-.alias('?')
+.alias('/?')
 .description('show hints')
 .action(() => {
     currentCmdPayload = { status: "hint", action: "", target: "", value: "" };
 })
 
 program
-.command('config')
-.alias(':c')
-.description('edit configs')
-.option('-a, --action <action>', 'action to edit', (v) => to_d(v), "")
-.option('-t, --target <target>', 'target to edit', (v) => to_d(v), "")
-.option('-v, --value [value]', 'value to edit', (v) => to_d(cleanQuotes(v)), "")
-.action((options) => {
-    currentCmdPayload = { status: "config", action: options.action, target: options.target, value: options.value };
-})
+  .command('config')
+  .alias('/c')
+  .description('edit configs')
+
+  // set of -a
+  .option('-g, --get', 'get configs')
+  .option('-s, --set', 'set configs')
+
+  .option('-a, --action <action>', 'action to edit')
+  
+  .option('-t, --target <target>', 'target to edit')
+  .option('-v, --value [value]', 'value to edit')
+  .action((options) => {
+    const action = options.get ? 'get' : options.set ? 'set' : options.action || '';
+    
+    currentCmdPayload = { 
+      status: "config", 
+      action, 
+      target: options.target || '', 
+      value: options.value || '' 
+    };
+  })
 
 const to_d = (v: string) => {
     return v.toLowerCase()

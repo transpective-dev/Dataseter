@@ -67,16 +67,38 @@ export const Edit = ({
   };
 
   if (action === "get" && target === "all") {
-    return scroll_view(get_obj(configManager.config.store));
+    const obj: {
+      [key: string]: object
+    } = {};
+    obj[`${configManager.getActiveHostKey() as string}`] = configManager.getActiveConfig();
+
+    return scroll_view(get_obj(obj));
   }
 
-  const realPath = configManager.config.has(target)
-    ? target
-    : findKeyPath(configManager.config.store, target);
+  // resolve the short key name to a real dot-path inside the active host config
+  const activeKey = configManager.getActiveHostKey(); // e.g. 'server_config'
+  const inactiveKey = configManager.getInactiveHostKey(); // e.g. 'local_config'
+  const activeConfig = configManager.getActiveConfig();
+
+  // top-level keys like active_host live outside the host configs
+  const topLevelKeys = ['active_host'];
+  const isTopLevel = topLevelKeys.includes(target);
+
+  let realPath: string | null = null;
+
+  if (isTopLevel) {
+    realPath = target;
+  } else {
+    // search inside the active config object
+    const innerPath = findKeyPath(activeConfig, target);
+    if (innerPath) {
+      realPath = `${activeKey}.${innerPath}`;
+    }
+  }
 
   if (!realPath) {
     return scroll_view(
-      <Text color="red">✖ Key '{target}' not found in configuration.</Text>,
+      <Text color="red">✖ Key '{target}' not found in active configuration ({activeKey}).</Text>,
     );
   }
 
@@ -87,6 +109,12 @@ export const Edit = ({
       );
 
     case "set":
+      // Gate: block writes that target the inactive host's config
+      if (realPath.startsWith(inactiveKey + '.')) {
+        return scroll_view(
+          <Text color={palette.warning}>✖ Cannot set '{target}': belongs to inactive host ({inactiveKey}). Switch active_host first.</Text>,
+        );
+      }
       return scroll_view(set_one(realPath, value));
 
     default:

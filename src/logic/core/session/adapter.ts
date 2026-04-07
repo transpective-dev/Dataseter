@@ -1,10 +1,12 @@
 import * as openai from 'openai';
-import { session_p, session_execute_p, extracted_data } from './session.interface';
-import { Prompts } from '../../system_prompt';
-import { getPaths } from '../../get_path';
-import { Cloud_ClientManager } from '../load_agent/cloud';
+import type { session_p, session_execute_p, extracted_data } from '../../interface/session.interface.ts';
+import { Prompts } from '../../utils/system_prompt.ts';
+import { paths } from '../../utils/get_path.ts';
+import { Cloud_ClientManager } from '../load_agent/cloud.ts';
+import { Local_ClientManager } from '../load_agent/local.ts';
+import { configManager } from '../../../config-util.ts';
 
-import { schema_builder } from '../../utils';
+import { schema_builder } from '../../utils/utils.ts';
 
 let client: Cloud_ClientManager | null = null
 
@@ -80,7 +82,7 @@ export class Session {
 
 }
 
-import { writeIntoFile } from '../../utils';
+import { writeIntoFile } from '../../utils/utils.ts';
 import fs from "fs/promises"
 
 export class SessionManager {
@@ -88,8 +90,10 @@ export class SessionManager {
     // initial is 5
     private static max_conc: number = 5;
 
-    constructor(payloads: session_p) {
-        SessionManager.max_conc = payloads.max_conc ? payloads.max_conc : 5;
+    private static config = configManager.getActiveConfig();
+
+    constructor() {
+        SessionManager.max_conc = SessionManager.config.sessionSettings.max_concurrent ? SessionManager.config.sessionSettings.max_concurrent : 5;
     }
 
     private static session_queue: Promise<extracted_data>[] = [];
@@ -108,31 +112,26 @@ export class SessionManager {
             return;
         }
 
-        const configPath = getPaths().file_agent_config;
-
-        const res = await fs.readFile(configPath, 'utf-8').then(JSON.parse);
-
-        if (!res.baseURL) {
-            console.error('URL is missing. please check agent.config.json or settings');
-        }
-
-        if (!res.model) {
-            console.error('Model is missing. please check agent.config.json or settings');
-        }
+        if (!('base_url' in this.config) || (this.config.base_url === '')) return 'base_url is missing. please check agent.config.json or settings';
 
         client = new Cloud_ClientManager({
-            baseURL: res.baseURL,
-            model: res.model,
-            apiKey: res.apiKey ? res.apiKey : undefined,
+            baseURL: this.config.base_url,
+            model: this.config.model_name,
+            apiKey: this.config.api_key,
             payloads: {
-                timeout: res.timeout,
-                maxRetries: res.maxRetries
+                timeout: 30000,
+                maxRetries: 3
             }
         })
 
+        return;
+
     }
 
-    public async launchSessions(payloads: session_execute_p[]) {
+    // entry
+    public static async launchSessions(payloads: session_execute_p[]) {
+
+        const host = configManager.getActiveHostKey();
 
         for (const i of payloads) {
 
@@ -142,21 +141,31 @@ export class SessionManager {
                 await Promise.race(SessionManager.session_queue);
             }
 
-            const session = new Session(client!.getClient(), client!.model);
+            let promise: any;
 
-            const promise = session.execute(i);
+            if (host === 'server_config') {
+
+                await this.instantiateClient();
+
+                const session = new Session(client!.getClient(), client!.model);
+
+                promise = session.execute(i);
+
+            } else {
+
+            }
 
             SessionManager.session_queue.push(promise);
 
-            promise.then( async (res) => {
+            promise.then(async (res: extracted_data) => {
 
-                const result = await writeIntoFile('dataset', getPaths().file_dataset, {
+                const result = await writeIntoFile('dataset', paths.file_dataset, {
                     dataset: {
-                        path: getPaths().file_dataset,
+                        path: paths.file_dataset,
                         content: res.data
                     }
                 });
-                
+
                 if (!result?.status) {
 
                     SessionManager.session_list.failed.push({
@@ -172,8 +181,8 @@ export class SessionManager {
 
                 SessionManager.session_list.success.push(res.info);
 
-            }).catch((err) => {
-                
+            }).catch((err: any) => {
+
                 SessionManager.session_list.failed.push(err.info);
 
             });
@@ -188,9 +197,9 @@ export class SessionManager {
 
         await Promise.all(SessionManager.session_queue);
 
-        const result = await writeIntoFile('status', getPaths().file_status, {
+        const result = await writeIntoFile('status', paths.file_status, {
             status: {
-                path: getPaths().file_status,
+                path: paths.file_status,
                 content: SessionManager.session_list
             }
         });

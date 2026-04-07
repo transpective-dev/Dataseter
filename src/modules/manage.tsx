@@ -4,7 +4,7 @@ import { palette } from "../assets/colors.ts";
 import { useState } from "react";
 import { Hints } from "./hints.module.tsx";
 import { Edit } from "./edit/edit.module.tsx";  
-import { IfStart } from "./start/start.module.tsx";
+import { IfStart } from "./extract/extract.tsx";
 
 export type status = undefined | "extract" | "history" |  "config" | "hint";
 
