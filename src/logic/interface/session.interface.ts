@@ -69,15 +69,15 @@ export interface chunk_cont {
 
 // there must have a input in schema
 export interface schema_base {
-    purpose: string;
-    format: {
+    instruction: string;
+    form: {
         [key: string]: input | normal;
     }
 }
 
 interface input {
-    requirement: string;
-    filter?: string;
+    requirement: string | string[];
+    keywords?: string[];
     options?: string[];
 }
 

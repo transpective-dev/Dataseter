@@ -54,10 +54,11 @@ export interface Paths {
     temp: string;
     file_dataset: string;
     file_status: string;
-
+    
     // msg_logs and processed_history
     other: string;
     file_processed_history: string;
+    file_schema: string;
 
 }
 
@@ -75,6 +76,7 @@ export const get_path = () => {
         temp: TEMP_PATH,
         other: OTHER_PATH,
         file_dataset: path.join(DATA_PATH, 'data.jsonl'),
+        file_schema: path.join(OTHER_PATH, 'schema.yml'),
         file_status: path.join(TEMP_PATH, 'status.json'),
         file_processed_history: path.join(OTHER_PATH, 'processed_history.jsonl'),
     }

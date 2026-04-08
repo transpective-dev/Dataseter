@@ -1,5 +1,5 @@
 import * as openai from 'openai';
-import type { session_p, session_execute_p, extracted_data } from '../../interface/session.interface.ts';
+import type { session_p, session_execute_p, extracted_data, chunk_cont } from '../../interface/session.interface.ts';
 import { Prompts } from '../../utils/system_prompt.ts';
 import { paths } from '../../utils/get_path.ts';
 import { Cloud_ClientManager } from '../load_agent/cloud.ts';
@@ -11,7 +11,7 @@ import { schema_builder } from '../../utils/utils.ts';
 let client: Cloud_ClientManager | null = null
 
 export interface ISession {
-    execute(payloads: session_execute_p): Promise<extracted_data>;
+    execute(payloads: chunk_cont): Promise<extracted_data>;
 }
 
 // Cloud Session Implementation
@@ -27,10 +27,10 @@ export class CloudSession implements ISession {
     }
 
     // execute session
-    public async execute(payloads: session_execute_p): Promise<extracted_data> {
+    public async execute(payloads: chunk_cont): Promise<extracted_data> {
 
-        const system_prompt = Prompts.data_extraction(payloads.schema);
-        const getSchema = schema_builder(payloads.schema);
+        const system_prompt = await Prompts.data_extraction();
+        const getSchema = await schema_builder();
 
         try {
             const response = await this.client.chat.completions.create({
@@ -42,7 +42,7 @@ export class CloudSession implements ISession {
                     },
                     {
                         role: 'user',
-                        content: `provided_data: ${payloads.payloads.content}`
+                        content: `provided_data: ${payloads.content}`
                     }
                 ],
                 temperature: 0.5,
@@ -62,7 +62,7 @@ export class CloudSession implements ISession {
 
             return {
                 info: {
-                    id: payloads.payloads.chunk_id,
+                    id: payloads.chunk_id,
                     status: 'completed',
                     tokens: response.usage?.total_tokens || 0,
                     finishReason: response.choices[0]?.finish_reason || 'unknown'
@@ -73,7 +73,7 @@ export class CloudSession implements ISession {
         } catch (error: any) {
             return {
                 info: {
-                    id: payloads.payloads.chunk_id,
+                    id: payloads.chunk_id,
                     status: 'failed',
                     error_msg: error.message,
                     tokens: 'failed to count used tokens',
@@ -88,7 +88,7 @@ export class CloudSession implements ISession {
 
 // Local Session Implementation
 export class LocalSession implements ISession {
-    public async execute(payloads: session_execute_p): Promise<extracted_data> {
+    public async execute(payloads: chunk_cont): Promise<extracted_data> {
         try {
             const responseTxt = await Local_ClientManager.executeSingle(payloads);
             
@@ -100,7 +100,7 @@ export class LocalSession implements ISession {
 
             return {
                 info: {
-                    id: payloads.payloads.chunk_id,
+                    id: payloads.chunk_id,
                     status: 'completed',
                     tokens: 0,
                     finishReason: 'stop'
@@ -110,7 +110,7 @@ export class LocalSession implements ISession {
         } catch (error: any) {
             return {
                 info: {
-                    id: payloads.payloads.chunk_id,
+                    id: payloads.chunk_id,
                     status: 'failed',
                     error_msg: error.message,
                     tokens: 0,
@@ -176,9 +176,9 @@ export class SessionManager {
             // instantiate local model
             console.log('[Adapter] Initializing Local Client Manager...');
             const localConfig = {
-                path: (this.config as any).model_path || '',
+                path: ((this.config as any).model_path || '').replace(/^["'](.*)["']$/, '$1'),
                 name: this.config.model_name || 'local-model',
-                contextSize: this.config.context?.input || 4000,
+                contextSize: this.config.context?.input + this.config.context?.output || 4000,
                 cache: (this.config as any).sessionSettings?.cache || 'F16'
             };
             
@@ -191,7 +191,7 @@ export class SessionManager {
     }
 
     // entry
-    public static async launchSessions(payloads: session_execute_p[]) {
+    public static async launchSessions(payloads: chunk_cont[]) {
 
         const host = configManager.getActiveHostKey();
 

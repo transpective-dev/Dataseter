@@ -1,5 +1,5 @@
 import * as openai from 'openai';
-import { ClientConfig, connection_status } from '../../general.interface';
+import type { ClientConfig, connection_status } from '../../interface/general.interface.ts';
 
 export class Cloud_ClientManager {
 

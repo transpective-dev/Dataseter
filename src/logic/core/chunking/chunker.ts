@@ -13,7 +13,7 @@ export class ChunkLogic {
 
     }
 
-    public static async getChunk(payloads: _raw) {
+    public static async getChunk(payloads: _raw): Promise<chunk_cont[] | { error: string }> {
 
         try {
 
@@ -36,8 +36,9 @@ export class ChunkLogic {
 
             params.file.content = payloads.content !== null ? typeof payloads.content === 'string' ? payloads.content.split('\n') : payloads.content : [];
 
+            const prompt = await Prompts.data_extraction();
             const res: any = await calcTokens('spec', {
-                prompt: '',
+                prompt: prompt,
                 content: params.file.content,
                 file_id: payloads.id,
             }, 'o200k_base');
@@ -67,7 +68,7 @@ export class ChunkLogic {
                 overlap: overlap,
             }, ChunkLogic.tiktoken_encoding || 'cl100k_base');
 
-            return chunks_res;
+            return chunks_res as chunk_cont[];
 
         } catch (e: any) {
             console.error(e);
@@ -81,7 +82,8 @@ export class ChunkLogic {
 }
 
 import { get_encoding } from 'tiktoken';
-import { Utils } from "../../utils/utils.ts";
+import { Utils, arrToString } from "../../utils/utils.ts";
+import type { chunk_cont } from "../../interface/session.interface.ts";
 
 interface chunk_detail {
     // token per chunk
@@ -203,7 +205,10 @@ export const calcTokens = async (type: 'single' | 'chunker' | 'spec', payloads: 
 
                     if (form && form.content.length > 0) return_chunks.push(form);
 
-                    return return_chunks;
+                    return return_chunks.map((chunk) => ({
+                        ...chunk,
+                        content: arrToString(chunk.content as string[])
+                    }));
 
                 })()
             }

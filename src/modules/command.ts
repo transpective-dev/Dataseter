@@ -18,6 +18,16 @@ const cleanQuotes = (v: string) => {
   return v;
 };
 
+// test command
+
+program
+.command('test')
+.alias('/t')
+.description('test command')
+.action(() => {
+    currentCmdPayload = { status: "extract", action: "", target: "", value: "E:\\WSL-Kali\\LSFP\\Just play\\c2ds\\$test\\pretest.md" };
+})
+
 program
 .command('extract')
 .alias('/s')
@@ -50,12 +60,14 @@ program
   .option('-v, --value [value]', 'value to edit')
   .action((options) => {
     const action = options.get ? 'get' : options.set ? 'set' : options.action || '';
+
+    const trimmed = options.value.replace(/^"(.*)"$/, '$1');
     
     currentCmdPayload = { 
       status: "config", 
       action, 
       target: options.target || '', 
-      value: options.value || '' 
+      value: trimmed || '' 
     };
   })
 

@@ -44,6 +44,7 @@ export class Parser {
           return {
             status: true,
             data: await TxtParser(buffer)
+            
           };
         }
 

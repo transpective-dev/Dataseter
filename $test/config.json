@@ -3,17 +3,17 @@
 	"local_config": {
 		"model_name": "undefined",
 		"context": {
-			"input": 8192,
+			"input": 16000,
 			"output": 8192
 		},
 		"model_preference": {
-			"temperature": 0.7,
+			"temperature": 0.5,
 			"top_p": 0.9,
 			"top_k": 40,
 			"repeat_penalty": 1.1
 		},
 		"host": "local",
-		"model_path": "\"E:\\WSL-Kali\\LSFP\\Just play\\package-manager\\.test\\models\\Qwen3.5-0.8B.Q4_K_M.gguf\"",
+		"model_path": "E:\\WSL-Kali\\LSFP\\Just play\\package-manager\\.test\\models\\Qwen3.5-0.8B.Q4_K_M.gguf",
 		"sessionSettings": {
 			"chunk_buffer": 0.6,
 			"chunk_output_ratio": 0.5,
@@ -32,11 +32,11 @@
 	"server_config": {
 		"model_name": "undefined",
 		"context": {
-			"input": 8192,
-			"output": 8192
+			"input": 16000,
+			"output": 4000
 		},
 		"model_preference": {
-			"temperature": 0.7,
+			"temperature": 0.5,
 			"top_p": 0.9,
 			"top_k": 40,
 			"repeat_penalty": 1.1

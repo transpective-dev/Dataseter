@@ -6,15 +6,20 @@ import { palette } from "../../assets/colors.ts";
 import { Parser } from "../../logic/core/parsers/baseParser.ts";
 import { ChunkLogic } from "../../logic/core/chunking/chunker.ts";
 import { CustomIndicator } from "../../assets/theme.tsx";
+import { Prompts } from "../../logic/utils/system_prompt.ts";
+import { calcTokens } from "../../logic/core/chunking/chunker.ts";
+import type { chunk_cont } from "../../logic/interface/session.interface.ts";
 
 export const Check = ({
   next,
   quit,
   path,
+  set_payloads
 }: {
-  next: () => void;
+  next: (chunks?: any) => void;
   quit: () => void;
   path: string;
+  set_payloads: (payloads: chunk_cont[]) => void;
 }) => {
 
   const [isParsed, setIsParsed] = useState<{
@@ -26,6 +31,7 @@ export const Check = ({
     estimates: {
       token: number;
       chunk: number;
+      chunksRaw?: any;
     } | null;
   } | {
       status: false,
@@ -36,23 +42,42 @@ export const Check = ({
     estimates: null,
   });
 
+  const [other, setOther] = useState<{
+    prompt_token: number;
+  }>({
+    prompt_token: 0,
+  });
+
   useEffect(() => {
+
+    (async () => {
+      const res = await calcTokens('single', await Prompts.data_extraction(), 'o200k_base');
+      setOther({
+        prompt_token: res as number,
+      })
+    })()
+
     Parser.parseFile(path).then(async (data) => {
 
       let estToken = 0;
       let estChunk = 0;
-      let estimates: any;
+      let estimates: chunk_cont[] | { error: string };
 
       if (data.status && data.content) {
         try {
           estimates = await ChunkLogic.getChunk(data);
           
           if (Array.isArray(estimates) && estimates.length > 0) {
-              estToken = estimates.reduce((acc: number, curr: any) => acc + curr.est_token, 0);
-              estChunk = estimates.length;
+
+            if ('chunk_id' in estimates) {
+              set_payloads(estimates);
+            }
+            
+            estToken = estimates.reduce((acc: number, curr: any) => acc + curr.est_token, 0);
+            estChunk = estimates.length;
           } 
 
-          if (estimates.error) throw new Error(estimates.error);
+          if ('error' in estimates) throw new Error(estimates.error);
 
           setIsParsed({
             status: data.status,
@@ -63,6 +88,7 @@ export const Check = ({
             estimates: {
               token: estToken,
               chunk: estChunk,
+              chunksRaw: estimates
             },
           });
 
@@ -99,6 +125,11 @@ export const Check = ({
           <Text>File Path: {path}</Text>
           <Text>Lines: {isParsed.data?.content.length}</Text>
           <Text>Estimated Token Usage: {isParsed.estimates?.token || 0}</Text>
+          <Box flexDirection="column" paddingLeft={2} gap={1}>
+            <Text color={palette.secondary}>System Prompt: {other.prompt_token}</Text>
+            <Text color={palette.secondary}>Content: {isParsed.estimates?.token! - other.prompt_token || undefined }</Text>
+            <Text color={palette.secondary}>Token Tolerance: 1.2x</Text>
+          </Box>
           <Text>Estimated Chunk count: {isParsed.estimates?.chunk || 0}</Text>
           <Box flexDirection="column" marginTop={2}>
             <Text>Do you want to continue?</Text>
@@ -109,7 +140,7 @@ export const Check = ({
               ]}
               onSelect={(item) => {
                 if (item.value === "yes") {
-                  next();
+                  next(isParsed.estimates?.chunksRaw);
                 }
                 if (item.value === "no") {
                   quit();

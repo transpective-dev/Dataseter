@@ -39,15 +39,15 @@ export class history {
 
 }
 
-import { type schema_base } from '../interface/session.interface.ts';
+export const schema_builder = async () => {
 
-export const schema_builder = (schema: schema_base) => {
+    const schema = await yml_to_json();
 
-    if (!schema.format) {
+    if (!schema.form) {
         console.error('format is missing');
     }
 
-    if (!schema.format.input) {
+    if (!schema.form.input) {
         console.error('input is missing');
     }
 
@@ -63,16 +63,16 @@ export const schema_builder = (schema: schema_base) => {
 
     const required: string[] = [];
 
-    for (const key in schema.format) {
+    for (const key in schema.form) {
 
-        const i = schema.format[key];
+        const i = schema.form[key];
 
         // in can check key_value 
         const description = 'requirement' in i! ? i.requirement : i!.exp;
 
         properties[key] = {
             type: 'string',
-            description,
+            description: JSON.stringify(description, null, 2),
         };
 
         if (i!.options) {
@@ -152,10 +152,43 @@ export const writeIntoFile = async (kind: 'dataset' | "config" | 'status', path:
     }
 }
 
-export const pretestWrite = async (data: string[], path: string) => {
-
-    for (const i of data) {
-        await appendFile(path, i)
-    }
+export const arrToString = (arr: string[]) => {
+    return arr.join('\n');
 }
 
+// === 
+
+import yaml from 'js-yaml';
+import { z } from 'zod';
+
+const inputSchema = z.object({
+  requirement: z.union([z.string(), z.array(z.string())]).default(''),
+  keywords: z.array(z.string()).default([]),
+  options: z.array(z.string()).default([]),
+}).default({});
+
+const normalSchema = z.object({
+  exp: z.string().default(''),
+  options: z.array(z.string()).default([]),
+}).default({});
+
+const schemaBaseSchema = z.object({
+  instruction: z.string().default(''),
+  form: z.record(z.union([inputSchema, normalSchema])).default({}),
+}).default({});
+
+export type SchemaBase = z.infer<typeof schemaBaseSchema>;
+
+export const yml_to_json = async (): Promise<SchemaBase> => {
+
+  const yml = await readFile(paths.file_schema, 'utf-8');
+  
+  const parsed = yaml.load(yml) as unknown;
+  
+  const validated = schemaBaseSchema.parse(parsed);
+
+  console.log(parsed);
+
+  return validated;
+
+};

@@ -1,5 +1,5 @@
 import { Llama, getLlama, LlamaContext, LlamaModel, LlamaChat } from "node-llama-cpp";
-import type { extracted_data, session_execute_p } from "../../interface/session.interface.ts";
+import type { chunk_cont, extracted_data, session_execute_p } from "../../interface/session.interface.ts";
 import { Prompts } from "../../utils/system_prompt.ts";
 import { schema_builder } from "../../utils/utils.ts";
 
@@ -96,56 +96,86 @@ export class Local_ClientManager {
         Local_ClientManager.setContext(ctx)
     }
 
-    public static executeSingle = async (payload: session_execute_p): Promise<string> => {
+    public static executeSingle = async (payload: chunk_cont): Promise<string> => {
 
-        const build_llama_schema = await (async (full_schema = schema_builder(payload.schema).schema): Promise<any> => {
-            const agent = Local_ClientManager.agent;
-            const clean_properties: Record<string, any> = {};
+        const full_schema = await schema_builder()
+        const prompt = await Prompts.data_extraction()
+        console.dir(full_schema, { depth: null, colors: true })
 
-            for (const [key, value] of Object.entries((full_schema as any).properties)) {
-                const { description, requirement, exp, ...constraints } = value as any;
-                clean_properties[key] = constraints;
-            }
+        const schemaData = (full_schema as any).schema;
+        const agent = Local_ClientManager.agent;
+        const clean_properties: Record<string, any> = {};
 
-            const grammar = await agent.createGrammarForJsonSchema({
-                type: (full_schema as any).type,
+        for (const [key, value] of Object.entries(schemaData.properties)) {
+            const { description, requirement, exp, ...constraints } = value as any;
+            clean_properties[key] = constraints;
+        }
+
+        const grammar = await agent.createGrammarForJsonSchema({
+            type: 'array',
+            items: {
+                type: 'object',
                 properties: clean_properties,
-                required: (full_schema as any).required,
+                required: schemaData.required,
                 additionalProperties: false
-            });
+            }
+        });
 
-            return grammar;
-        })();
-
-        const schema = build_llama_schema;
+        const schema = grammar;
         const seq = Local_ClientManager.context.getSequence();
 
         const session = new LlamaChat({
             contextSequence: seq,
         })
-
+        
+        console.log(payload.content)
+        
         try {
+
             const responseResult = await session.generateResponse([
                 {
                     type: 'system',
-                    text: Prompts.data_extraction(payload.schema)
+                    text: prompt
                 },
                 {
                     type: 'user',
-                    text: `provided_data: ${payload.payloads.content}`
+                    text: `provided_data: ${payload.content}`
                 }
             ], {
                 grammar: schema
             });
 
-            return typeof responseResult === 'string' ? responseResult : (responseResult as any).response || responseResult;
-        } finally {
+
+            console.log('Response metadata:', responseResult);
+
+            const resultText = typeof responseResult === 'string' ? responseResult : (responseResult as any).response;
+            
+            if (resultText === undefined || resultText === null) {
+                throw new Error("Local model returned undefined/null response.");
+            }
+
+            return resultText;
+
+        } catch (e: any) {
+            console.log('error while generating response: ', e)
+            throw new Error(
+                `
+                generation_status: ${false}
+                Error_msg: ${e}
+                `
+            )
+        }
+
+        finally {
+
             if (typeof (session as any).dispose === 'function') {
                 (session as any).dispose();
             }
+
             if (seq && typeof (seq as any).dispose === 'function') {
                 (seq as any).dispose();
             }
+
         }
     }
 
