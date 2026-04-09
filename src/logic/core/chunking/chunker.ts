@@ -48,10 +48,15 @@ export class ChunkLogic {
             params.file.tokens = res.total;
 
             // best input ctx size for chunk
-            const ctx = (params.input - (params.used + params.fired)) * params.buffer_factor;
 
-            if (ctx <= 0) {
-                throw new Error("Context size is too small to chunk");
+            let ctx: number;
+
+            let uses = (params.used + params.fired)
+
+            if (uses > params.input) {
+                ctx = params.input * params.buffer_factor;
+            } else {
+                ctx = (params.input - uses) * params.buffer_factor;
             }
 
             // determine the optimal chunk count

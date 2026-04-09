@@ -124,6 +124,8 @@ export class LocalSession implements ISession {
 
 import { writeIntoFile } from '../../utils/utils.ts';
 import fs from "fs/promises"
+import { emitter } from '../../../emitter.ts';
+import { Session } from 'inspector';
 
 export class SessionManager {
 
@@ -146,7 +148,7 @@ export class SessionManager {
             failed: [],
         }
 
-    public static async instantiateClient() {
+    public static async instantiateClient(c: number) {
 
         const host = configManager.getActiveHostKey();
 
@@ -173,17 +175,23 @@ export class SessionManager {
                 return;
             }
 
+            const total_ctx = this.config.context.input + this.config.context.output;
+
+            const max_c = this.config.sessionSettings.max_concurrent;
+
+            const ctx_pool_size = c > max_c ? max_c * total_ctx : total_ctx * c;
+
             // instantiate local model
             console.log('[Adapter] Initializing Local Client Manager...');
             const localConfig = {
                 path: ((this.config as any).model_path || '').replace(/^["'](.*)["']$/, '$1'),
                 name: this.config.model_name || 'local-model',
-                contextSize: this.config.context?.input + this.config.context?.output || 4000,
+                contextSize: ctx_pool_size,
                 cache: (this.config as any).sessionSettings?.cache || 'F16'
             };
-            
+
             const localClient = new Local_ClientManager(localConfig);
-            await localClient.initialize(localConfig);
+            await localClient.initialize(localConfig, c);
             
             return;
         }
@@ -207,16 +215,20 @@ export class SessionManager {
             let session: ISession;
 
             if (host === 'server_config') {
-                await this.instantiateClient();
+                await this.instantiateClient(payloads.length);
                 session = new CloudSession(client!.getClient(), client!.model);
                 promise = session.execute(i);
             } else {
-                await this.instantiateClient();
+                await this.instantiateClient(payloads.length);
                 session = new LocalSession();
                 promise = session.execute(i);
             }
 
             SessionManager.session_queue.push(promise);
+
+            emitter.emit('session', {
+               queue: SessionManager.session_queue
+            })
 
             promise.then(async (res: extracted_data) => {
 

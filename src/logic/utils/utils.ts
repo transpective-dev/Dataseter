@@ -187,8 +187,6 @@ export const yml_to_json = async (): Promise<SchemaBase> => {
   
   const validated = schemaBaseSchema.parse(parsed);
 
-  console.log(parsed);
-
   return validated;
 
 };

@@ -2,6 +2,8 @@ import { Llama, getLlama, LlamaContext, LlamaModel, LlamaChat } from "node-llama
 import type { chunk_cont, extracted_data, session_execute_p } from "../../interface/session.interface.ts";
 import { Prompts } from "../../utils/system_prompt.ts";
 import { schema_builder } from "../../utils/utils.ts";
+import { emitter } from "../../../emitter.ts";
+import { configManager } from "../../../config-util.ts";
 
 interface agent_config {
     path: string,
@@ -61,7 +63,7 @@ export class Local_ClientManager {
         return !!Local_ClientManager.agent && !!Local_ClientManager.model && !!Local_ClientManager.context;
     }
 
-    public initialize = async (config: agent_config) => {
+    public initialize = async (config: agent_config, ctx_size: number) => {
 
         if (Local_ClientManager.isInitialized()) {
             return;
@@ -85,22 +87,18 @@ export class Local_ClientManager {
         }
 
         // create init ctx pool
-        await Local_ClientManager.setContext(config.contextSize);
+        await Local_ClientManager.setContext(ctx_size);
 
         console.log(Local_ClientManager.context.contextSize);
 
-    }
-
-    // set context pool for concurrency
-    public static setContextPool = async (ctx: number) => {
-        Local_ClientManager.setContext(ctx)
     }
 
     public static executeSingle = async (payload: chunk_cont): Promise<string> => {
 
         const full_schema = await schema_builder()
         const prompt = await Prompts.data_extraction()
-        console.dir(full_schema, { depth: null, colors: true })
+
+        // console.dir(full_schema, { depth: null, colors: true })
 
         const schemaData = (full_schema as any).schema;
         const agent = Local_ClientManager.agent;
@@ -127,9 +125,11 @@ export class Local_ClientManager {
         const session = new LlamaChat({
             contextSequence: seq,
         })
-        
-        console.log(payload.content)
-        
+
+        const {
+            top_p, top_k, temperature, repeat_penalty
+        } = configManager.getActiveConfig().model_preference
+
         try {
 
             const responseResult = await session.generateResponse([
@@ -142,14 +142,25 @@ export class Local_ClientManager {
                     text: `provided_data: ${payload.content}`
                 }
             ], {
-                grammar: schema
+                grammar: schema,
+                onToken: (token) => {
+                    const detokened = this.model.detokenize(token);
+                    emitter.emit('token', detokened);
+                },
+                repeatPenalty: {
+                    penalty: repeat_penalty
+                },
+                temperature: temperature,
+                topP: top_p,
+                topK: top_k,
             });
 
 
-            console.log('Response metadata:', responseResult);
+            console.log('Response metadata:');
+            console.dir(responseResult, { depth: null, colors: true });
 
             const resultText = typeof responseResult === 'string' ? responseResult : (responseResult as any).response;
-            
+
             if (resultText === undefined || resultText === null) {
                 throw new Error("Local model returned undefined/null response.");
             }
