@@ -25,8 +25,7 @@ program
 .alias('/t')
 .description('test command')
 .action(() => {
-    currentCmdPayload = { status: "extract", action: "", target: "", value: "E:\\WSL-Kali\\LSFP\\Just play\\c2ds\\$test\\pretest.md" };
-    // currentCmdPayload = { status: "extract", action: "", target: "", value: "C:\\Users\\shin2\\Downloads\\input.pdf" };
+    currentCmdPayload = { status: "extract", action: "", target: "", value: "./$test/pretest.md" };
 })
 
 program

@@ -173,4 +173,4 @@ export const Check = ({
   );
 };
 
-// $s -f C:\Users\shin2\Downloads\input.pdf
+// $s -f ./path/to/input.pdf
