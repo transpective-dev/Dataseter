@@ -225,3 +225,17 @@ export const config_form_filled: {
         }
     }
 }
+
+import type { extracted_data } from "./session.interface.ts";
+
+export interface session_queue {
+    id: string;
+    time: string;
+    output: string;
+    promise: Promise<extracted_data>;
+}
+
+export interface emit_token {
+    id: string;
+    token: string;
+} 

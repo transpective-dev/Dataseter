@@ -5,13 +5,14 @@ import { paths } from '../../utils/get_path.ts';
 import { Cloud_ClientManager } from '../load_agent/cloud.ts';
 import { Local_ClientManager } from '../load_agent/local.ts';
 import { configManager } from '../../../config-util.ts';
+import type { agent_config } from '../load_agent/local.ts';
 
 import { schema_builder } from '../../utils/utils.ts';
 
 let client: Cloud_ClientManager | null = null
 
 export interface ISession {
-    execute(payloads: chunk_cont): Promise<extracted_data>;
+    execute(payloads: chunk_cont, config: agent_config): Promise<extracted_data>;
 }
 
 // Cloud Session Implementation
@@ -88,10 +89,13 @@ export class CloudSession implements ISession {
 
 // Local Session Implementation
 export class LocalSession implements ISession {
-    public async execute(payloads: chunk_cont): Promise<extracted_data> {
+    public async execute(payloads: chunk_cont, config: agent_config): Promise<extracted_data> {
+
+        let local: Local_ClientManager | null = new Local_ClientManager(config);
+
         try {
-            const responseTxt = await Local_ClientManager.executeSingle(payloads);
-            
+            const responseTxt = await local.executeSingle(payloads);
+
             if (!responseTxt) {
                 throw new Error("Local model returned empty response.");
             }
@@ -119,6 +123,9 @@ export class LocalSession implements ISession {
                 data: null
             };
         }
+        finally {
+            local = null
+        }
     }
 }
 
@@ -126,6 +133,7 @@ import { writeIntoFile } from '../../utils/utils.ts';
 import fs from "fs/promises"
 import { emitter } from '../../../emitter.ts';
 import { Session } from 'inspector';
+import type { session_queue } from '../../interface/general.interface.ts';
 
 export class SessionManager {
 
@@ -138,7 +146,10 @@ export class SessionManager {
         SessionManager.max_conc = SessionManager.config.sessionSettings.max_concurrent ? SessionManager.config.sessionSettings.max_concurrent : 5;
     }
 
-    private static session_queue: Promise<extracted_data>[] = [];
+    private static agent_config: agent_config = {
+    } as agent_config
+
+    private static session_queue: Map<string, session_queue> = new Map();
 
     private static session_list: {
         success: extracted_data['info'][];
@@ -181,18 +192,20 @@ export class SessionManager {
 
             const ctx_pool_size = c > max_c ? max_c * total_ctx : total_ctx * c;
 
+            console.log(ctx_pool_size)
+
             // instantiate local model
             console.log('[Adapter] Initializing Local Client Manager...');
-            const localConfig = {
+            SessionManager.agent_config = {
                 path: ((this.config as any).model_path || '').replace(/^["'](.*)["']$/, '$1'),
                 name: this.config.model_name || 'local-model',
                 contextSize: ctx_pool_size,
                 cache: (this.config as any).sessionSettings?.cache || 'F16'
             };
 
-            const localClient = new Local_ClientManager(localConfig);
-            await localClient.initialize(localConfig, c);
-            
+            const localClient = new Local_ClientManager(SessionManager.agent_config);
+            await localClient.initialize(SessionManager.agent_config, ctx_pool_size);
+
             return;
         }
 
@@ -205,10 +218,8 @@ export class SessionManager {
 
         for (const i of payloads) {
 
-            if (SessionManager.session_queue.length > SessionManager.max_conc - 1) {
-
-                // wait for the first session to finish
-                await Promise.race(SessionManager.session_queue);
+            if (this.session_queue.size >= this.max_conc) {
+                await Promise.race(Array.from(this.session_queue.values()).map((i) => i.promise));
             }
 
             let promise: Promise<extracted_data>;
@@ -217,17 +228,22 @@ export class SessionManager {
             if (host === 'server_config') {
                 await this.instantiateClient(payloads.length);
                 session = new CloudSession(client!.getClient(), client!.model);
-                promise = session.execute(i);
+                promise = session.execute(i, this.agent_config);
             } else {
                 await this.instantiateClient(payloads.length);
                 session = new LocalSession();
-                promise = session.execute(i);
+                promise = session.execute(i, this.agent_config);
             }
 
-            SessionManager.session_queue.push(promise);
+            SessionManager.session_queue.set(i.chunk_id, {
+                id: i.chunk_id,
+                time: new Date().toISOString(),
+                output: '',
+                promise: promise
+            });
 
             emitter.emit('session', {
-               queue: SessionManager.session_queue
+                queue: SessionManager.session_queue
             })
 
             promise.then(async (res: extracted_data) => {
@@ -262,13 +278,12 @@ export class SessionManager {
 
             // delete from queue when finished
             promise.finally(() => {
-                const index = SessionManager.session_queue.indexOf(promise);
-                if (index !== -1) SessionManager.session_queue.splice(index, 1);
+                this.session_queue.delete(i.chunk_id);
             });
 
         }
 
-        await Promise.all(SessionManager.session_queue);
+        await Promise.allSettled(Array.from(this.session_queue.values()).map((i) => i.promise));
 
         const result = await writeIntoFile('status', paths.file_status, {
             status: {

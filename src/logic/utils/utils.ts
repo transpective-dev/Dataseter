@@ -67,15 +67,21 @@ export const schema_builder = async () => {
 
         const i = schema.form[key];
 
-        // in can check key_value 
-        const description = 'requirement' in i! ? i.requirement : i!.exp;
+        // resolve description: requirement (input fields) or exp (normal fields)
+        let description: string;
+        if ('requirement' in i!) {
+            description = Array.isArray(i.requirement) ? i.requirement.join('; ') : (i.requirement || '');
+        } else {
+            description = i!.exp || '';
+        }
 
         properties[key] = {
             type: 'string',
-            description: JSON.stringify(description, null, 2),
+            description: description || key,
         };
 
-        if (i!.options) {
+        // only attach enum when options actually exist
+        if (i!.options && Array.isArray(i!.options) && i!.options.length > 0) {
             properties[key].enum = i!.options;
         }
 

@@ -52,22 +52,25 @@ program
   .description('edit configs')
 
   // set of -a
-  .option('-g, --get', 'get configs')
-  .option('-s, --set', 'set configs')
+  .option('-g, --get <target>', 'get configs')
+  .option('-s, --set <target...>', 'set configs')
 
   .option('-a, --action <action>', 'action to edit')
   
   .option('-t, --target <target>', 'target to edit')
   .option('-v, --value [value]', 'value to edit')
   .action((options) => {
-    const action = options.get ? 'get' : options.set ? 'set' : options.action || '';
 
-    const trimmed = options.value.replace(/^"(.*)"$/, '$1');
+    const action = options.get ? 'get' : options.set ? 'set' : options.action || '';
+    const target = options.get ? options.get : options.set ? options.set[0] : options.target || '';
+    const value = options.get ? '' : options.set ? options.set[1] : options.value || '';
+
+    const trimmed = value.replace(/^"(.*)"$/, '$1');
     
     currentCmdPayload = { 
       status: "config", 
       action, 
-      target: options.target || '', 
+      target, 
       value: trimmed || '' 
     };
   })
@@ -87,6 +90,7 @@ export const executeCommand = async (input: string) => {
     // from: 'node' will remove first two args, but user won't
     const args = tokenize(input);
     await program.parseAsync(args, { from: 'user' });
+    console.log(currentCmdPayload);
     return currentCmdPayload;
   } catch (error: any) {
     return { status: undefined, action: "", target: "", value: "" };

@@ -6,9 +6,11 @@ import { SessionManager } from "../../logic/core/session/adapter.ts";
 import {
   type session_execute_p,
   type schema_base,
+  type extracted_data,
 } from "../../logic/interface/session.interface.ts";
 import { type chunk_cont } from "../../logic/interface/session.interface.ts";
 import { emitter } from "../../emitter.ts";
+import type { session_queue, emit_token } from "../../logic/interface/general.interface.ts";
 
 export const Start = ({
   next,
@@ -22,15 +24,24 @@ export const Start = ({
   payloads: chunk_cont[] | undefined;
 }) => {
   const [status, setStatus] = useState<"running" | "error" | "done">("running");
-  const [stream, setStream] = useState<string>("");
+  const [stream, setStream] = useState<Map<string, emit_token>>(new Map());
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [queue, setQueue] = useState<Map<string, session_queue>>(new Map());
 
   useEffect(() => {
-    const handleToken = (token: string) => {
-      setStream(token);
+    const handleToken = (payload: any) => {
+      // Create a shallow copy to force React to trigger a re-render
+      setStream(new Map(payload instanceof Map ? payload : Object.entries(payload)));
+    };
+
+    const handleQueue = (payload: any) => {
+      // In case adapter sends { queue: Map }, extract it
+      const q = payload?.queue || payload;
+      setQueue(new Map(q instanceof Map ? q : Object.entries(q)));
     };
 
     emitter.on("token", handleToken);
+    emitter.on("session", handleQueue);
 
     const runExtraction = async () => {
       try {
@@ -48,6 +59,7 @@ export const Start = ({
 
     return () => {
       emitter.off("token", handleToken);
+      emitter.off("session", handleQueue); 
     };
   }, []);
 
@@ -56,11 +68,21 @@ export const Start = ({
       {status === "running" && (
         <Box>
           <Spinner />
-          <Box marginLeft={2}>
+          <Box marginLeft={2} gap={1} flexDirection="column">
             <Text color={palette.secondary}>
-              Connecting to adapter & parsing {payloads?.length} chunks...
+              Connecting to adapter & parsing {queue.size} chunks...
             </Text>
-            <Text>{stream}</Text>
+            <Box gap={1} flexDirection="column">
+              {Array.from(queue.values()).map((item) => (
+                <Box flexDirection="row" gap={1}>
+                  <Text>{item.id}</Text>
+                  <Text color={palette.secondary}>|</Text>
+                  <Text>{item.time}</Text>
+                  <Text color={palette.secondary}>|</Text>
+                  <Text>{stream.get(item.id)?.token.slice(Math.max(0, stream.get(item.id)?.token.length! - 30), stream.get(item.id)?.token.length)}</Text>
+                </Box>
+              ))}
+            </Box>
           </Box>
         </Box>
       )}

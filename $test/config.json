@@ -3,8 +3,8 @@
 	"local_config": {
 		"model_name": "undefined",
 		"context": {
-			"input": 16000,
-			"output": 8192
+			"input": 2000,
+			"output": 4000
 		},
 		"model_preference": {
 			"temperature": 0.5,
